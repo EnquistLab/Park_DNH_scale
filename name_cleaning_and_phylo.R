@@ -1,7 +1,12 @@
 #Initial scripts for taxonomic harmonization and phylogeny stuff
 
+library(BIEN)
+library(ape)
+
+
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #FIA data prep
+
 
 #For FIA, use "new scientific name" where not empty
 FIA_taxa <- read.csv("C:/Users/Brian/Google Drive/DNH_scale/FIA_taxa.csv",na.strings = c("",NA))
@@ -112,6 +117,7 @@ FIA_taxa<-unique(FIA_taxa)
 #NEON data prep  
 
 NEON_taxa <- read.csv("C:/Users/Brian/Google Drive/DNH_scale/NEON_taxa.csv")
+NEON_taxa$taxonID<-paste(NEON_taxa$taxonID,1:nrow(NEON_taxa),sep = "")
 NEON_taxa$scientificName <- as.character(NEON_taxa$scientificName)
 #filter by taxon rank to only include species
 
@@ -126,13 +132,11 @@ NEON_taxa$scientificName<-unlist(lapply(X = NEON_taxa$scientificName,FUN = funct
   
 }))
 
-NEON_taxa <- NEON_taxa[c("scientificName","family","taxonID")]
 NEON_taxa <- unique(NEON_taxa)
 NEON_taxa$genus<-unlist(lapply(X = NEON_taxa$scientificName,FUN = function(x){
   paste(strsplit(x = x, split = " ")[[1]][1],collapse =" "  )
   
 }))
-
 NEON_taxa<-NEON_taxa[c("scientificName","genus","family","taxonID")]
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -200,73 +204,141 @@ dup_stuff<-combined_taxa[which(combined_taxa$SCIENTIFIC_NAME%in%dup_taxa),]
 
 if(length(dup_taxa)!=0){stop("Duplicated shit, yo")}
 
+
+#Remove taxa with X as species
+
+combined_taxa <- combined_taxa[which(combined_taxa$GENUS != "x"),]
+
+
 rm(BIEN_tax,dup_stuff,dup_taxa,asserted_genus,fam_i,i,inferred_genus,sp_i)
 
-combined_species<-combined_taxa$SCIENTIFIC_NAME
-
+rm(FIA_taxa,NEON_taxa,USDA_taxa)
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #Checking out phylogenies for taxon overlap
-library(ape)
 
 
-#BIEN tree first
-BIEN_tree<-BIEN::BIEN_phylogeny_complete(n_phylogenies = 1)
-paste(length(which(combined_species %in% gsub(pattern = "_",replacement = " ",x = BIEN_tree$tip.label)))/length(combined_species)*100, "percent coverage")
-#about 63%
+#GB = genbank phylos
 
-BIEN_cons_tree<-BIEN_phylogeny_conservative()
-paste(length(which(combined_species %in% gsub(pattern = "_",replacement = " ",x = BIEN_cons_tree$tip.label)))/length(combined_species)*100, "percent coverage")
-# 31%
+#Smith 2017 cons Open Tree backbone
+gbotb_tree <- read.tree("C:/Users/Brian/Desktop/phylogenies/Smith_big_seed_plant_trees_v0.1/GBOTB.tre")
+summary(gbotb_tree)
+paste(length(which(combined_taxa$SCIENTIFIC_NAME %in% gsub(pattern = "_",replacement = " ",x = gbotb_tree$tip.label)))/length(combined_taxa$SCIENTIFIC_NAME)*100, "percent coverage")
+#about 45%
 
-#Smith 2017 all Open Tree backbone
-allotb_tree <- read.tree("C:/Users/Brian/Desktop/phylogenies/Smith_big_seed_plant_trees_v0.1/ALLOTB.tre")
-paste(length(which(combined_species %in% gsub(pattern = "_",replacement = " ",x = allotb_tree$tip.label)))/length(combined_species)*100, "percent coverage")
-#about 76%
-
-#Smith 2017 all Magallon backbone
-allmb_tree <- read.tree("C:/Users/Brian/Desktop/phylogenies/Smith_big_seed_plant_trees_v0.1/ALLMB.tre")
-paste(length(which(combined_species %in% gsub(pattern = "_",replacement = " ",x = allmb_tree$tip.label)))/length(combined_species)*100, "percent coverage")
-#about 77%
+#Windows code for creating sunplin.spn object needed by sunplin code
+  #cd "C:\Users\Brian\Desktop\current_projects\Park_DNH_scale"
+  #R CMD SHLIB sunplin-r.cpp --output=sunplin.spn
 
 
+source("C:/Users/Brian/Desktop/current_projects/misc_R_code/sunplin/sunplin/sunplin-functions.r")
+dyn.load("C:/Users/Brian/Desktop/current_projects/misc_R_code/sunplin/sunplin/sunplin.spn")
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#Prepping Smith tree:
+
+#Need to add node labels where needed, and also identify which how species will be assigned to put (ie node based or tip based)
+
+combined_taxa$put_level<-NA
+combined_taxa$put<-NA
+
+Smith_taxonomy<-BIEN_taxonomy_species(species = gsub(pattern = "_",replacement = " ",x = gbotb_tree$tip.label))
+
+for( i in 1:nrow(combined_taxa)){
+  
+  #Check whether genus is present multiple times
+  if(length(grep(pattern = paste(combined_taxa$GENUS[i],"_",sep = ""),x = gbotb_tree$tip.label))>1 ){
+  combined_taxa$put_level[i]<-"mrca_genus"
+  combined_taxa$put[i]<-combined_taxa$GENUS[i] }#if
+  
+  #Check whether genus is present at least once
+  if(length(grep(pattern = paste(combined_taxa$GENUS[i],"_",sep = ""),x = gbotb_tree$tip.label))==1 ){
+    combined_taxa$put_level[i]<-"congener"
+    combined_taxa$put[i]<-gbotb_tree$tip.label[grep(pattern = paste(combined_taxa$GENUS[i],"_",sep = ""),x = gbotb_tree$tip.label)] }#if
+  
+  
+  #Check whether family is present multiple times (and genus is not present)
+  
+    fam_i<-unique(Smith_taxonomy$scrubbed_family[which(Smith_taxonomy$scrubbed_genus==combined_taxa$GENUS[i])])  
+    
+    if(length(fam_i)>=1 & is.na(combined_taxa$put_level[i])){
+    
+    if(length(fam_i)>1 | fam_i == "Unknown"){stop("too many families or only unknown")}  
+    
+    
+    
+    spp_in_fam_i<-gbotb_tree$tip.label[which(gbotb_tree$tip.label %in%   gsub(pattern = " ",replacement = "_",Smith_taxonomy$scrubbed_species_binomial[which(Smith_taxonomy$scrubbed_family==fam_i)]) )]
+    
+    
+    #if genus attempts havent worked and there are multiple confamilials, use family mrca
+    if( length(spp_in_fam_i)>1 &  is.na(combined_taxa$put_level[i])){
+      combined_taxa$put_level[i]<-"mrca_family"
+      combined_taxa$put[i]<-fam_i  }#if
+    
+      
+    if( length(spp_in_fam_i)==1 &  is.na(combined_taxa$put_level[i])){
+      combined_taxa$put_level[i]<-"confamilial"
+      combined_taxa$put[i]<-spp_in_fam_i  }#if
+    
+    
+    #If none of these have worked, the species will retain an NA, and be removed later
+    
+    rm(spp_in_fam_i,fam_i)
+    }#only go through family stuff if we have a family in the taxonomy
+      
+}#for i loop
+
+
+
+
+
+#2) Need to label all clades that will have species inserted into them (ie genera or families if that fails)
+
+#Label genera nodes
+combined_taxa_for_genus_level
+
+for(i in 1:length(unique(combined_taxa_for_genus_level$GENUS))){
+  
+  genus_i<-unique(combined_taxa_for_genus_level$GENUS)[i]
+  mrca_i<-getMRCA(phy = gbotb_tree,tip = gbotb_tree$tip.label[grep(pattern = paste(genus_i,"_",sep = ""),x = gbotb_tree$tip.label)])
+  
+  
+  
+  getMRCA(phy = gbotb_tree,tip = 1)
+  
+  gbotb_tree$node.label[mrca_i-length(gbotb_tree$tip.label)]<-genus_i
+  
+}
+
+
+
+
+
+#Label family nodes
+combined_taxa_for_family_level
+
+
+
+
+#3) Need to prepare a .puts (phylogenetically uncertain taxa) file containing all species to be added
+
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+write.tree(phy = gbotb_tree,file = "Smith_2017_gbotb.tre")
+
+
+trees <- sunplin.expd("Hum_146_spp.tree","Hum_158_spp.puts",numTree =  100,method = 2)
+trees
+
+gsub(pattern = "tree",replacement = "\t tree",x = trees)
+
+tree10 <- sunplin.n.tree(trees,nth =  100,typeInput = "tree")
+tree10nk <-sunplin.tree2newick(tree10)
+tree10
+read.tree(text = tree10nk)
+
+strsplit(x = trees,split = ";")
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-
-#Looks like about 20% of species aren't matching any phylogeny
-bad_names<-combined_species[which(!combined_species %in% gsub(pattern = "_",replacement = " ",x = allotb_tree$tip.label)  )]
-
-library(BIEN)
-source("r_scripts/sloppy_tnrs.R")
-tnrsed_bad_names<-sloppy_tnrs(species_list = bad_names)
-
-mismatched_names<-tnrsed_bad_names[which(tnrsed_bad_names$name_supplied != tnrsed_bad_names$scrubbed_species_binomial),]
-
-
-#Zanne 2014
-
-#qian hong has an updated version of Zanne in plotone      
-
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-library(ape)
-library(phytools)
-source("C:/Users/Brian/Desktop/current_projects/S.PhyloMaker/R_codes for S.PhyloMaker")
-phytophylo<-read.tree(file = "C:/Users/Brian/Desktop/current_projects/S.PhyloMaker/PhytoPhylo")
-nodes<-read.table("C:/Users/Brian/Desktop/current_projects/S.PhyloMaker/nodes",header=T,sep = "\t") # read in the nodes information of the megaphylogeny.
-colnames(combined_taxa)<-c("species","genus","family")
-
-
-example<-read.csv("C:/Users/Brian/Desktop/current_projects/S.PhyloMaker/example.splist",header=T) # read in the nodes information of the megaphylogeny.
-
-
-
-#splist: a user specified data frame which contains a list of seed plant species for which S.PhyloMaker generates phylogenies. 
-#This data frame should include three columns with field names of 
-#species, genus, and family. 
-#The three columns are, respectively, for species name (e.g. Acacia berlandieri), genus name (e.g. Acacia), and family name (e.g. Fabaceae).
-combined_taxa$species<-gsub(pattern = " ",replacement = "_",x = combined_taxa$species)
-results<-S.PhyloMaker(tree = phytophylo,spList = combined_taxa[1:3],nodes = nodes)
 
