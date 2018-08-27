@@ -223,6 +223,8 @@ rm(FIA_taxa,NEON_taxa,USDA_taxa)
 
 #Smith 2017 cons Open Tree backbone
 gbotb_tree <- read.tree("C:/Users/Brian/Desktop/phylogenies/Smith_big_seed_plant_trees_v0.1/GBOTB.tre")
+#Strip existing node labels
+gbotb_tree$node.label[which(gbotb_tree$node.label!="")]<-""
 summary(gbotb_tree)
 paste(length(which(combined_taxa$SCIENTIFIC_NAME %in% gsub(pattern = "_",replacement = " ",x = gbotb_tree$tip.label)))/length(combined_taxa$SCIENTIFIC_NAME)*100, "percent coverage")
 #about 45%
@@ -260,7 +262,7 @@ for( i in 1:nrow(combined_taxa)){
   
   #Check whether family is present multiple times (and genus is not present)
   
-    fam_i<-unique(Smith_taxonomy$scrubbed_family[which(Smith_taxonomy$scrubbed_genus==combined_taxa$GENUS[i])])  
+    fam_i<-combined_taxa$FAMILY[i]
     
     if(length(fam_i)>=1 & is.na(combined_taxa$put_level[i])){
     
@@ -288,57 +290,115 @@ for( i in 1:nrow(combined_taxa)){
     }#only go through family stuff if we have a family in the taxonomy
       
 }#for i loop
+rm(fam_i,i)
 
-
+#drop taxa that have NA for put level (mostly mosses and ferns, but a few weird seed plants (Rafflesia))
+combined_taxa <- combined_taxa[which(!is.na(combined_taxa$put_level)),]
 
 
 
 #2) Need to label all clades that will have species inserted into them (ie genera or families if that fails)
 
-#Label genera nodes
-combined_taxa_for_genus_level
 
-for(i in 1:length(unique(combined_taxa_for_genus_level$GENUS))){
+genera_to_add<-unique(combined_taxa$GENUS[which(combined_taxa$put_level=="mrca_genus")])
+families_to_add<-unique(combined_taxa$FAMILY[which(combined_taxa$put_level=="mrca_family")])
+
+#Label genera nodes
+for(i in 1:length(genera_to_add)){
   
-  genus_i<-unique(combined_taxa_for_genus_level$GENUS)[i]
-  mrca_i<-getMRCA(phy = gbotb_tree,tip = gbotb_tree$tip.label[grep(pattern = paste(genus_i,"_",sep = ""),x = gbotb_tree$tip.label)])
+genus_i<-genera_to_add[i]  
+
+mrca_i<-getMRCA(phy = gbotb_tree,
+        tip = grep(pattern = paste(genus_i,"_",sep = ""),x = gbotb_tree$tip.label)   )
+
+#if the node isnt labelled yet, label it.
+if(gbotb_tree$node.label[mrca_i-length(gbotb_tree$tip.label)]==""){
+
+gbotb_tree$node.label[mrca_i-length(gbotb_tree$tip.label)]<-genus_i
+
+}else{
+
+#if the node IS labelled, modify the put of the genus in question to match the node label
+if(gbotb_tree$node.label[mrca_i-length(gbotb_tree$tip.label)]!=""){
   
-  
-  
-  getMRCA(phy = gbotb_tree,tip = 1)
-  
-  gbotb_tree$node.label[mrca_i-length(gbotb_tree$tip.label)]<-genus_i
-  
+  label_i<-gbotb_tree$node.label[mrca_i-length(gbotb_tree$tip.label)]
+  combined_taxa$put[which(combined_taxa$put_level=="mrca_genus" & combined_taxa$put==genus_i)]<-label_i
+  rm(label_i)
+    
+}else{stop("Something weird happened")}
+
+}#if the node is labelled
+
+rm(genus_i,mrca_i)
+
 }
 
 
-
-
-
 #Label family nodes
-combined_taxa_for_family_level
 
+for(i in 1:length(families_to_add)){
+  
+  fam_i<-families_to_add[i]  
+  spp_in_family <- Smith_taxonomy$scrubbed_species_binomial[which(Smith_taxonomy$scrubbed_family == fam_i)]
+  
+  
+  mrca_i<-getMRCA(phy = gbotb_tree,
+                  tip = which(gbotb_tree$tip.label %in% gsub(pattern = " ",replacement = "_", x = spp_in_family   ) )) 
+  
+
+  
+  #if the node isnt labelled yet, label it.
+  if(gbotb_tree$node.label[mrca_i-length(gbotb_tree$tip.label)]==""){
+    
+    gbotb_tree$node.label[mrca_i-length(gbotb_tree$tip.label)]<-fam_i
+    
+  }else{
+    
+    #if the node IS labelled, modify the put of the genus in question to match the node label
+    if(gbotb_tree$node.label[mrca_i-length(gbotb_tree$tip.label)]!=""){
+      
+      label_i<-gbotb_tree$node.label[mrca_i-length(gbotb_tree$tip.label)]
+      combined_taxa$put[which(combined_taxa$put_level=="mrca_family" & combined_taxa$put==fam_i)]<-label_i
+      rm(label_i)
+      
+    }else{stop("Something weird happened")}
+    
+  }#if the node is labelled
+  
+  
+  rm(fam_i,mrca_i,spp_in_family)
+  
+}
+rm(i,genera_to_add,families_to_add)
 
 
 
 #3) Need to prepare a .puts (phylogenetically uncertain taxa) file containing all species to be added
 
+file.create("gbotb_tree.puts")
+writeLines(text = paste(gsub(pattern = " ",replacement = "_",x = combined_taxa$SCIENTIFIC_NAME)," ",combined_taxa$put,sep = ""),
+           con = "gbotb_tree.puts")  
+
 
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+#write current version of tree (with node labels)
+
 write.tree(phy = gbotb_tree,file = "Smith_2017_gbotb.tre")
+nreps=1000
+for(i in 1:nreps){
+    
+  trees <- sunplin.expd("Smith_2017_gbotb.tre","gbotb_tree.puts",numTree =  1,method = 2)  
+  t1<-strsplit(x = trees,split = ";")[[1]][2]
+  t2<-read.tree(text = paste(t1,";",sep = " "))
+  write.tree(phy = t2,file = paste("sunplin_trees/gbotb_tree_sunplin_method_2_rep",i,".tre",sep = ""))  
+  print(paste(i/nreps*100, "percent done"))
+  
+  
+}
+rm(nreps)
 
 
-trees <- sunplin.expd("Hum_146_spp.tree","Hum_158_spp.puts",numTree =  100,method = 2)
-trees
-
-gsub(pattern = "tree",replacement = "\t tree",x = trees)
-
-tree10 <- sunplin.n.tree(trees,nth =  100,typeInput = "tree")
-tree10nk <-sunplin.tree2newick(tree10)
-tree10
-read.tree(text = tree10nk)
-
-strsplit(x = trees,split = ";")
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
