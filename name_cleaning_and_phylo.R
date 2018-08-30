@@ -152,6 +152,7 @@ USDA_taxa<-USDA_taxa[grep(pattern = "Ã",x = USDA_taxa$species,invert = T),]
 
 
 
+
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #combining sets of taxa
@@ -208,11 +209,25 @@ if(length(dup_taxa)!=0){stop("Duplicated shit, yo")}
 #Remove taxa with X as species
 
 combined_taxa <- combined_taxa[which(combined_taxa$GENUS != "x"),]
-
+combined_taxa <- combined_taxa[which(combined_taxa$SCIENTIFIC_NAME != "(Valeton) Hosok."),]
 
 rm(BIEN_tax,dup_stuff,dup_taxa,asserted_genus,fam_i,i,inferred_genus,sp_i)
 
 rm(FIA_taxa,NEON_taxa,USDA_taxa)
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+#Add anything Dan has that is currently missing
+#annotate Dan's master list with species data
+
+master_taxon<-read.csv("C:/Users/Brian/Google Drive/DNH_scale/master_taxon_binomial.csv")
+master_taxon<-master_taxon[c('binomial',"Genus","Family")]
+colnames(master_taxon)<-colnames(combined_taxa)
+master_taxon$SCIENTIFIC_NAME<-gsub(pattern = "_",replacement = " ",x = master_taxon$SCIENTIFIC_NAME)
+combined_taxa<-rbind(combined_taxa,master_taxon)
+combined_taxa<-unique(combined_taxa)
+rm(master_taxon)
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -228,7 +243,15 @@ gbotb_tree$node.label[which(gbotb_tree$node.label!="")]<-""
 summary(gbotb_tree)
 paste(length(which(combined_taxa$SCIENTIFIC_NAME %in% gsub(pattern = "_",replacement = " ",x = gbotb_tree$tip.label)))/length(combined_taxa$SCIENTIFIC_NAME)*100, "percent coverage")
 #about 45%
+source("r_scripts/collapse_subsp.R")
+gbotb_tree<-collapse_subsp(gbotb_tree)
 
+
+#Double check that combined_taxa has no duplicated species
+
+if(length(unique(combined_taxa$SCIENTIFIC_NAME))!=nrow(combined_taxa)){stop("Duplicated Taxa")}
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #Windows code for creating sunplin.spn object needed by sunplin code
   #cd "C:\Users\Brian\Desktop\current_projects\Park_DNH_scale"
   #R CMD SHLIB sunplin-r.cpp --output=sunplin.spn
@@ -293,9 +316,10 @@ for( i in 1:nrow(combined_taxa)){
 rm(fam_i,i)
 
 #drop taxa that have NA for put level (mostly mosses and ferns, but a few weird seed plants (Rafflesia))
+combined_taxa_og<-combined_taxa
 combined_taxa <- combined_taxa[which(!is.na(combined_taxa$put_level)),]
-
-
+#remove taxa that are already in the tree
+combined_taxa<-combined_taxa[which(!gsub(pattern = " ",replacement = "_", x = combined_taxa$SCIENTIFIC_NAME) %in% gbotb_tree$tip.label),]
 
 #2) Need to label all clades that will have species inserted into them (ie genera or families if that fails)
 
@@ -386,7 +410,7 @@ writeLines(text = paste(gsub(pattern = " ",replacement = "_",x = combined_taxa$S
 #write current version of tree (with node labels)
 
 write.tree(phy = gbotb_tree,file = "Smith_2017_gbotb.tre")
-nreps=1000
+nreps=1
 for(i in 1:nreps){
     
   trees <- sunplin.expd("Smith_2017_gbotb.tre","gbotb_tree.puts",numTree =  1,method = 2)  

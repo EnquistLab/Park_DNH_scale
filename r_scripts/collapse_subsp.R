@@ -51,7 +51,7 @@ phylogeny$tip.label[which(phylogeny$tip.label==tips_to_rename)]<-species_i
 #if you can't collapse it, due to lack of monophyly, do nothing
 
 }#if multiple species to consider
-print(paste(round(i/length(unique(subsp$species)*100),digits = 2)," percent done."))
+print(paste(round(i/length(unique(subsp$species))*100,digits = 2)," percent done."))
 
   
 }#for i loop
