@@ -410,12 +410,21 @@ writeLines(text = paste(gsub(pattern = " ",replacement = "_",x = combined_taxa$S
 #write current version of tree (with node labels)
 
 write.tree(phy = gbotb_tree,file = "Smith_2017_gbotb.tre")
-nreps=1
+nreps=1000
 for(i in 1:nreps){
     
   trees <- sunplin.expd("Smith_2017_gbotb.tre","gbotb_tree.puts",numTree =  1,method = 2)  
   t1<-strsplit(x = trees,split = ";")[[1]][2]
   t2<-read.tree(text = paste(t1,";",sep = " "))
+  t2<-drop.tip(phy = t2,
+           tip = t2$tip.label[which(!t2$tip.label %in% gsub(pattern = " ",replacement = "_",x = combined_taxa_og$SCIENTIFIC_NAME))] ,
+           trim.internal = T, 
+           collapse.singles = T
+               
+           )
+  
+  
+  
   write.tree(phy = t2,file = paste("sunplin_trees/gbotb_tree_sunplin_method_2_rep",i,".tre",sep = ""))  
   print(paste(i/nreps*100, "percent done"))
   
