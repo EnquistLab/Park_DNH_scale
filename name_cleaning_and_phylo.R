@@ -318,6 +318,8 @@ rm(fam_i,i)
 #drop taxa that have NA for put level (mostly mosses and ferns, but a few weird seed plants (Rafflesia))
 combined_taxa_og<-combined_taxa
 combined_taxa <- combined_taxa[which(!is.na(combined_taxa$put_level)),]
+write.csv(x = combined_taxa_og,file = "combined_taxa_BSM.csv")
+
 #remove taxa that are already in the tree
 combined_taxa<-combined_taxa[which(!gsub(pattern = " ",replacement = "_", x = combined_taxa$SCIENTIFIC_NAME) %in% gbotb_tree$tip.label),]
 
