@@ -28,8 +28,6 @@ make_puts_input(puts_info = put_info,phylogeny = gbotb,phylogeny_filename = "gbo
 
 
 length(which(put_info$put_level!="present"))
-
-
 testsputs<-read.csv("gbotb_tree.puts",header = F)
 nrow(testsputs)#only one species missing, and its a weird family/species, so this is expected
 
