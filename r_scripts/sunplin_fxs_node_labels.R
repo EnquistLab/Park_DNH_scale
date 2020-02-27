@@ -1,6 +1,5 @@
 #sunplin functions using node labels
 
-
 #helper functions for sunplin and phylogenies
 #library(BIEN)
 
@@ -105,4 +104,168 @@ get_put_info_node_labels<-function(sp_fam,phylogeny,genus_only_addition=FALSE){
   return(sp_fam)
   
 }#end function
+
+
+#################################################################################
+
+
+
+make_puts_input_node_labels<-function(puts_info,phylogeny,phylogeny_filename="phylogeny.tre",puts_filename="taxa.puts"){
+  
+  #taxonomy<-BIEN_taxonomy_species(species = gsub(pattern = "_",replacement = " ",x = phylogeny$tip.label))
+  
+  #phylogeny$node.label[1:length(phylogeny$node.label)]<-""
+  
+  genera_to_add<-unique(puts_info$put[which(puts_info$put_level=="mrca_genus")])
+  families_to_add<-unique(puts_info$put[which(puts_info$put_level=="mrca_family")])
+  
+  #Label genera nodes
+  for(i in 1:length(genera_to_add)){
+    
+    genus_i <- genera_to_add[i]  
+    mrca_i <- getMRCA(phy = phylogeny,
+                      tip = grep(pattern = paste(genus_i,"_",sep = ""),x = phylogeny$tip.label)   )
+    
+      #check that genus node is already present
+      if(genus_i %in% phylogeny$node.label){
+        if(mrca_i != which(phylogeny$node.label==genus_i)+length(phylogeny$tip.label)){
+          #If MRCA and node labels conflict, use the node label (seems to be more conservative in the handful I've looked at)
+          warning("conflicting MRCA and nodel label information for genus ",genus_i, ", using node label")
+          next
+          }
+        if(mrca_i == which(phylogeny$node.label==genus_i)+length(phylogeny$tip.label)){
+          next # if the node label is present and correct, nothing more needs to be done
+        }
+        
+        
+      }#genus node presence check
+    
+    
+    
+    #if the node isnt labelled yet, label it.
+    if(phylogeny$node.label[mrca_i-length(phylogeny$tip.label)]==""){
+      
+      phylogeny$node.label[mrca_i-length(phylogeny$tip.label)] <- genus_i
+      
+      #zoom(phy = phylogeny,focus = grep(pattern = paste(genus_i,"_",sep = ""),x = phylogeny$tip.label),subtree = F,show.node.label=T)
+      
+      }else{
+      
+      #if the node IS labelled, modify the put of the genus in question to match the node label
+      if(phylogeny$node.label[mrca_i-length(phylogeny$tip.label)]!=""){
+        
+        label_i <- phylogeny$node.label[mrca_i-length(phylogeny$tip.label)]
+        puts_info$put[which(puts_info$put_level=="mrca_genus" & puts_info$put==genus_i)] <- label_i
+        rm(label_i)
+        
+      }else{stop("Something weird happened")}
+      
+    }#if the node is labelled
+    
+    rm(genus_i,mrca_i)
+    
+  }
+  
+  
+  #Label family nodes
+  if(length(families_to_add)>0){
+  for(i in 1:length(families_to_add)){
+    
+    fam_i<-families_to_add[i]  
+    stop("Brian, add code related to taxonomy here")
+    spp_in_family <- taxonomy$scrubbed_species_binomial[which(taxonomy$scrubbed_family == fam_i)]
+    
+    
+    mrca_i<-getMRCA(phy = phylogeny,
+                    tip = which(phylogeny$tip.label %in% gsub(pattern = " ",replacement = "_", x = spp_in_family   ) )) 
+    
+    
+    
+    #if the node isnt labelled yet, label it.
+    if(phylogeny$node.label[mrca_i-length(phylogeny$tip.label)]==""){
+      
+      phylogeny$node.label[mrca_i-length(phylogeny$tip.label)]<-fam_i
+      
+    }else{
+      
+      #if the node IS labelled, modify the put of the genus in question to match the node label
+      if(phylogeny$node.label[mrca_i-length(phylogeny$tip.label)]!=""){
+        
+        label_i<-phylogeny$node.label[mrca_i-length(phylogeny$tip.label)]
+        puts_info$put[which(puts_info$put_level=="mrca_family" & puts_info$put==fam_i)]<-label_i
+        rm(label_i)
+        
+      }else{stop("Something weird happened")}
+      
+    }#if the node is labelled
+    
+    
+    rm(fam_i,mrca_i,spp_in_family)
+    
+  }}#if any families to add
+  rm(i,genera_to_add,families_to_add)
+  
+  
+  
+  #3) Need to prepare a .puts (phylogenetically uncertain taxa) file containing all species to be added
+  
+  puts_info_for_output <- puts_info[union(x = grep(pattern = "mrca",x = puts_info$put_level),y = grep(pattern = "con",x = puts_info$put_level)),]
+  
+  
+  file.create(puts_filename)
+  writeLines(text = paste(gsub(pattern = " ",replacement = "_",x = puts_info_for_output[,1] )," ",puts_info_for_output$put,sep = ""),
+             con = puts_filename)  
+  
+  
+  #write current version of tree (with node labels)
+  
+  write.tree(phy = phylogeny,file = phylogeny_filename)
+  
+  
+}#end function
+#################################################################################################################
+#Make replicated phylogenies
+
+sunplin_phylo_replicates<-function(put_file,phylogeny_file,output_directory=NULL,output_base_filename=NULL,nrep=1,method=2,directory=NULL,taxa_to_keep=NULL){
+  wd<-getwd()
+  if(!is.null(directory)){setwd(directory)}
+  
+  #r limits character size, so have to use iterate the hard way
+  
+  for(i in 1:nrep){    
+
+    trees <- sunplin.expd(phylogeny_file,put_file,numTree = 1 ,method = method)
+    t1<-strsplit(x = trees,split = ";")[[1]][2]
+    t2<-read.tree(text = paste(t1,";",sep = " "))
+    
+    #summary(t2)
+    
+    if(!is.null(taxa_to_keep)){
+      
+      
+      t2<-drop.tip(phy = t2,
+                   tip = t2$tip.label[which(!t2$tip.label %in% gsub(pattern = " ",replacement = "_",x = taxa_to_keep))],
+                   trim.internal = T,
+                   collapse.singles = T  ) 
+      #summary(t2)  
+      
+    }
+    
+    
+    write.tree(phy = t2,file = paste(output_directory,output_base_filename,i,".tre",sep = ""))  
+    print(paste(i/nrep*100, "percent done"))
+    
+    
+  }
+  
+  
+  setwd(wd)
+  
+  
+}#phylo reps fx
+
+
+
+
+
 
