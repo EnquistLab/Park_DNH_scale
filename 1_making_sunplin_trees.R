@@ -1,7 +1,11 @@
 #Making sunplin trees v2
+install.packages("remotes")
+remotes::install_github("davidnipperess/PDcalc")
 
 library(ape)
 source("r_scripts/get_genera.R")
+source("sunplin-functions.r")
+source("r_scripts/sunplin_fxs_node_labels.R")
 
 
 #1 Check Smith and Brown's multiple trees for species and genus coverage and polytomies. 
@@ -139,6 +143,7 @@ gbotb$node.label[grep(pattern = "eae",x = gbotb$node.label)]#3
 
 #sunplin trees w/ genera additions (no family-level additions)
 
+#5.1 prepare puts info files
 allmb_puts_genus_only <- get_put_info_node_labels(sp_fam = taxa[c("binomial","Family")],phylogeny = allmb,genus_only_addition = T)
 length(which(allmb_puts_genus_only$put_level!="remove"))/nrow(allmb_puts_genus_only) #99 percent
 
@@ -149,7 +154,64 @@ gbotb_puts_genus_only <- get_put_info_node_labels(sp_fam = taxa[c("binomial","Fa
 length(which(gbotb_puts_genus_only$put_level!="remove"))/nrow(gbotb_puts_genus_only) #94 percent
 
 gbmb_puts_genus_only <- get_put_info_node_labels(sp_fam = taxa[c("binomial","Family")],phylogeny = gbmb,genus_only_addition = T)
-length(which(gbmb_puts_genus_only$put_level!="remove"))/nrow(gbmb_puts_genus_only) # percent
+length(which(gbmb_puts_genus_only$put_level!="remove"))/nrow(gbmb_puts_genus_only) # 94 percent
+
+#5.2 prepare puts phylo, .puts files
+
+make_puts_input_node_labels(puts_info = allmb_puts_genus_only,
+                            phylogeny = allmb,
+                            phylogeny_filename = "allmb_genus_only_puts_phylo.tre",
+                            puts_filename = "allmb_genus_only.puts")
+
+make_puts_input_node_labels(puts_info = allotb_puts_genus_only,
+                            phylogeny = allotb,
+                            phylogeny_filename = "allotb_genus_only_puts_phylo.tre",
+                            puts_filename = "allotb_genus_only.puts")
+
+make_puts_input_node_labels(puts_info = gbmb_puts_genus_only,
+                            phylogeny = gbmb,
+                            phylogeny_filename = "gbmb_genus_only_puts_phylo.tre",
+                            puts_filename = "gbmb_genus_only.puts")
+
+make_puts_input_node_labels(puts_info = gbotb_puts_genus_only,
+                            phylogeny = gbotb,
+                            phylogeny_filename = "gbotb_genus_only_puts_phylo.tre",
+                            puts_filename = "gbotb_genus_only.puts")
+
+
+#5.2 make replicated phylogenies using puts info
+
+temp<-read.tree(file = "allmb_genus_only.puts")
+
+
+sunplin_phylo_replicates(put_file = "allmb_genus_only.puts",
+                         phylogeny_file = "temp.tre",
+                         output_directory = "sunplin_trees/genus_addition_only/allmb_genus_additions_only/",
+                         output_base_filename = "allmb_genus_addition_only",
+                         nrep = 1000)
 
 
 
+sunplin_phylo_replicates(put_file = "allmb_genus_only.puts",
+                         phylogeny_file = "allmb_genus_only_puts_phylo.tre",
+                         output_directory = "sunplin_trees/genus_addition_only/allmb_genus_additions_only/",
+                         output_base_filename = "allmb_genus_addition_only",
+                         nrep = 1000)
+
+sunplin_phylo_replicates(put_file = "allotb_genus_only.puts",
+                         phylogeny_file = "allotb_genus_only_puts_phylo.tre",
+                         output_directory = "sunplin_trees/genus_addition_only/allotb_genus_additions_only/",
+                         output_base_filename = "allotb_genus_addition_only",
+                         nrep = 1000)
+
+#sunplin_phylo_replicates(put_file = "gbmb_genus_only.puts",
+#                         phylogeny_file = "gbmb_genus_only_puts_phylo.tre",
+#                         output_directory = "sunplin_trees/genus_addition_only/gbmb_genus_additions_only/",
+#                         output_base_filename = "gbmb_genus_addition_only",
+#                         nrep = 1000)
+
+#sunplin_phylo_replicates(put_file = "gbotb_genus_only.puts",
+#                         phylogeny_file = "gbotb_genus_only_puts_phylo.tre",
+#                         output_directory = "sunplin_trees/genus_addition_only/gbotb_genus_additions_only/",
+#                         output_base_filename = "gbotb_genus_addition_only",
+#                         nrep = 1000)
