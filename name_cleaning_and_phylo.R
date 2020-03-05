@@ -13,21 +13,20 @@ taxa$binomial<-gsub(pattern = "_",replacement = " ",x = taxa$binomial)
 taxa$Family<-as.character(taxa$Family)
 taxa$Family[which(taxa$binomial=="Hesperoyucca whipplei")]<-"Asparagaceae"
 
+length(which(gsub(pattern = " ",replacement = "_",taxa$binomial)%in%gbotb$tip.label))#8511 species present
 
 
 put_info<-get_put_info(sp_fam = taxa[c("binomial","Family")],phylogeny = gbotb)
-problem_sp<-put_info$binomial[which(put_info$put=="remove")]#2 taxa with issues
+
+problem_sp<-put_info$binomial[which(put_info$put=="remove")]#1 taxon with issues
 problem_taxonomy<-BIEN_taxonomy_species(problem_sp)
 taxa$Family[which(taxa$binomial%in%problem_sp)]
 problem_taxonomy$scrubbed_family
 
 
-
-
 make_puts_input(puts_info = put_info,phylogeny = gbotb,phylogeny_filename = "gbotb_tree.tre",puts_filename = "gbotb_tree.puts")
 
-
-length(which(put_info$put_level!="present"))
+length(which(put_info$put_level!="present"))#8958 added
 testsputs<-read.csv("gbotb_tree.puts",header = F)
 nrow(testsputs)#only one species missing, and its a weird family/species, so this is expected
 
@@ -37,3 +36,17 @@ sunplin_phylo_replicates(put_file = "gbotb_tree.puts",phylogeny_file = "gbotb_tr
                          output_base_filename = "gbotb_base_sunplin_method2_rep",
                          nrep = 1000, taxa_to_keep = put_info$binomial
                           )
+####################################################################
+
+#avoiding BIEN taxonomy
+taxa<-read.csv("C:/Users/Brian/Google Drive/DNH_scale/L48_taxa.csv")
+taxa$binomial<-gsub(pattern = "_",replacement = " ",x = taxa$binomial)
+taxa$Family<-as.character(taxa$Family)
+
+put_info_usda_taxonomy <- get_put_info_user_taxonomy(sp_fam = taxa[c("binomial","Family")],phylogeny = gbotb)
+problem_sp_usda<-put_info_usda_taxonomy$binomial[which(put_info_usda_taxonomy$put=="remove")]#5 taxa with issues
+taxa$Family[which(taxa$binomial%in%problem_sp_usda)]
+
+
+make_puts_input(puts_info = put_info_usda_taxonomy,phylogeny = gbotb,phylogeny_filename = "gbotb_tree.tre",puts_filename = "gbotb_tree.puts")
+
