@@ -1,12 +1,12 @@
 #Making sunplin trees v2
-install.packages("remotes")
-remotes::install_github("davidnipperess/PDcalc")
+#install.packages("remotes")
+#remotes::install_github("davidnipperess/PDcalc")
 
 library(ape)
 source("r_scripts/get_genera.R")
 source("sunplin-functions.r")
 source("r_scripts/sunplin_fxs_node_labels.R")
-
+source("r_scripts/collapse_subsp.R")
 
 #1 Check Smith and Brown's multiple trees for species and genus coverage and polytomies. 
 #Pick one that has the best coverage and least polytomies. 
@@ -38,6 +38,7 @@ gbmb <- read.tree("smith_and_brown_2018_trees/v0.1/v0.1/GBMB.tre")
 
 #load taxa
 taxa<-read.csv("C:/Users/Brian/Google Drive/DNH_scale/L48_taxa.csv",stringsAsFactors = F)
+write.csv(x = taxa,file = "L48_taxa.csv",row.names = F)
 
 #allmb performance
   #species
@@ -45,6 +46,8 @@ taxa<-read.csv("C:/Users/Brian/Google Drive/DNH_scale/L48_taxa.csv",stringsAsFac
   (length(allmb$tip.label)-1)-allmb$Nnode #271,897 spp in polytomies
   #genera
   length(which(unique(taxa$Genus)  %in% get_genera(allmb)))/length(unique(taxa$Genus)) #95%
+  #unique tip labels
+  length(unique(allmb$tip.label))/length(allmb$tip.label)
   
   
 #allotb performance
@@ -53,13 +56,19 @@ taxa<-read.csv("C:/Users/Brian/Google Drive/DNH_scale/L48_taxa.csv",stringsAsFac
   (length(allotb$tip.label)-1)-allotb$Nnode #267,505 spp in polytomies
   #genera
   length(which(unique(taxa$Genus)  %in% get_genera(allotb)))/length(unique(taxa$Genus)) #95%
+  #unique tip labels
+  length(unique(allotb$tip.label))/length(allotb$tip.label)
   
+    
 #gbmb performance
   #species
   length(intersect(gbmb$tip.label,taxa$binomial))/nrow(taxa) #8398, 48%
   (length(gbmb$tip.label)-1)-gbmb$Nnode #60 spp in polytomies
   #genera
   length(which(unique(taxa$Genus)  %in% get_genera(gbmb)))/length(unique(taxa$Genus))#88%
+  #unique tip labels
+  length(unique(gbmb$tip.label))/length(gbmb$tip.label)
+  
   
 #gbotb performance
   #species
@@ -67,6 +76,8 @@ taxa<-read.csv("C:/Users/Brian/Google Drive/DNH_scale/L48_taxa.csv",stringsAsFac
   (length(gbotb$tip.label)-1)-gbotb$Nnode #62 spp in polytomies
   #genera
   length(which(unique(taxa$Genus)  %in% get_genera(gbotb)))/length(unique(taxa$Genus)) #88%
+  #unique tip labels
+  length(unique(gbotb$tip.label))/length(gbotb$tip.label)
   
 
 ########################################################################################################
@@ -76,16 +87,25 @@ taxa<-read.csv("C:/Users/Brian/Google Drive/DNH_scale/L48_taxa.csv",stringsAsFac
 #convert all tips to species-level  
 
 #allmb
-allmb <- make_species_level(phylogeny = allmb)  
-
+allmb<- collapse_subsp(phylogeny = allmb)
+  #unique tip labels
+  length(unique(allmb$tip.label))/length(allmb$tip.label)
+  
 #allotb
-allotb <- make_species_level(phylogeny = allotb)  
+allotb <- collapse_subsp(phylogeny = allotb)  
+  #unique tip labels
+  length(unique(allotb$tip.label))/length(allotb$tip.label)
 
 #gbmb  
-gbmb <- make_species_level(phylogeny = gbmb)
+gbmb <-collapse_subsp(phylogeny = gbmb)
+  #unique tip labels
+  length(unique(gbmb$tip.label))/length(gbmb$tip.label)
+
 
 #gbotb
-gbotb <- make_species_level(phylogeny = gbotb)
+gbotb <- collapse_subsp(phylogeny = gbotb)
+  #unique tip labels
+  length(unique(gbotb$tip.label))/length(gbotb$tip.label)
 
 
 
@@ -100,18 +120,26 @@ gbotb <- make_species_level(phylogeny = gbotb)
 #allmb
 
 allmb <- check_synonyms(phylogeny = allmb, species_list = taxa$binomial)
+  #unique tip labels
+  length(unique(allmb$tip.label))/length(allmb$tip.label)
 
 #allotb
 
 allotb <- check_synonyms(phylogeny = allotb, species_list = taxa$binomial)
+  #unique tip labels
+  length(unique(allotb$tip.label))/length(allotb$tip.label)
 
 #gbmb  
 
 gbmb <- check_synonyms(phylogeny = gbmb, species_list = taxa$binomial)
+  #unique tip labels
+  length(unique(gbmb$tip.label))/length(gbmb$tip.label)
 
 #gbotb
 
 gbotb <- check_synonyms(phylogeny = gbotb, species_list = taxa$binomial)
+  #unique tip labels
+  length(unique(gbotb$tip.label))/length(gbotb$tip.label)
 
 
 #save modified phylogeny
@@ -181,8 +209,20 @@ make_puts_input_node_labels(puts_info = gbotb_puts_genus_only,
 
 #5.2 make replicated phylogenies using puts info
 
-temp<-read.tree(file = "allmb_genus_only.puts")
+temp <- read.tree(file = "allmb_genus_only_puts_phylo.tre")
+temp <- multi2di(phy = temp)
+write.tree(phy = temp,file = "temp.tre")
 
+
+#Crashes V
+#sunplin_phylo_replicates(put_file = "allmb_genus_only.puts",
+#                         phylogeny_file = "temp.tre",
+#                         output_directory = "sunplin_trees/genus_addition_only/allmb_genus_additions_only/",
+#                         output_base_filename = "allmb_genus_addition_only",
+#                         nrep = 1000)
+
+
+temp <- drop.tip(phy = temp,tip = setdiff(x = temp$tip.label,y = taxa$binomial))
 
 sunplin_phylo_replicates(put_file = "allmb_genus_only.puts",
                          phylogeny_file = "temp.tre",
@@ -191,6 +231,8 @@ sunplin_phylo_replicates(put_file = "allmb_genus_only.puts",
                          nrep = 1000)
 
 
+
+##############################
 
 sunplin_phylo_replicates(put_file = "allmb_genus_only.puts",
                          phylogeny_file = "allmb_genus_only_puts_phylo.tre",
