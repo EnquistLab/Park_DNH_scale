@@ -18,6 +18,20 @@ subsp$species<-unlist(lapply(X = as.character(subsp$subsp),FUN = function(x){
   paste(unlist(strsplit(x = x,split = "_")[[1]][1:2]),collapse = "_"  )
   }))
 
+#ensure no species have duplicate names
+duplicate_names <- unique(subsp$species[duplicated(subsp$species)])
+
+for(i in 1:length(duplicate_names)){
+  subsp$species[which(subsp$species==duplicate_names[i])] <-
+  
+  paste(
+  subsp$species[which(subsp$species==duplicate_names[i])] ,
+  1:length(which(subsp$species==duplicate_names[i])),sep = "")
+  
+  
+}#duplicate names
+
+
 
 for(i in 1:length(unique(subsp$species))){
 
