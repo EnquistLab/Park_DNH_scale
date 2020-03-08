@@ -6,7 +6,11 @@
 #sp_fam: dataframe where 1st column is species, second is family
 
 #function to generate puts file
-get_put_info_node_labels<-function(sp_fam,phylogeny,genus_only_addition=FALSE){
+get_put_info_node_labels<-function(sp_fam,phylogeny,genus_only_addition=FALSE,genera_in_grafting_fams = NULL){
+  
+  
+  genera_vector<-NULL
+  for(i in 1:length(phylogeny$tip.label)){genera_vector[i]<-strsplit(x = phylogeny$tip.label[i],split = "_")[[1]][1]}
   
   sp_fam$put_level<-NA
   sp_fam$put<-NA
@@ -47,12 +51,6 @@ get_put_info_node_labels<-function(sp_fam,phylogeny,genus_only_addition=FALSE){
       next
       
     }
-      
-    
-    
-    
-    
-    
     
     
     
@@ -66,14 +64,14 @@ get_put_info_node_labels<-function(sp_fam,phylogeny,genus_only_addition=FALSE){
     #first, we'll try to assign to families based on nodes
     if(sp_fam[i,2] %in% phylogeny$node.label){stop("Brian, write family node code")}
       
-    #failing that, we'll use 
+    #failing that, we'll use supplied genera-family info
+      genera_in_fam_i<-NULL
+      spp_in_fam_i<-NULL
       
-        stop("The code below here is broken")
+      genera_in_fam_i <- genera_in_grafting_fams$Genus[which(genera_in_grafting_fams$Family==sp_fam[i,2])]
       
+      spp_in_fam_i <-phylogeny$tip.label[which(genera_vector %in% genera_in_fam_i)]
       
-      spp_in_fam_i <- 
-        phylogeny$tip.label[which(phylogeny$tip.label %in% 
-                                    gsub(pattern = " ",replacement = "_",x = sp_fam$binomial[which(sp_fam$Family==fam_i)]) )]
       
       #if genus attempts havent worked and there are multiple confamilials, use family mrca
       if( length(spp_in_fam_i)>1 &  is.na(sp_fam$put_level[i])){
@@ -110,11 +108,14 @@ get_put_info_node_labels<-function(sp_fam,phylogeny,genus_only_addition=FALSE){
 
 
 
-make_puts_input_node_labels<-function(puts_info,phylogeny,phylogeny_filename="phylogeny.tre",puts_filename="taxa.puts"){
+make_puts_input_node_labels<-function(puts_info,phylogeny,phylogeny_filename="phylogeny.tre",puts_filename="taxa.puts",genera_in_grafting_fams = NULL){
   
   #taxonomy<-BIEN_taxonomy_species(species = gsub(pattern = "_",replacement = " ",x = phylogeny$tip.label))
   
   #phylogeny$node.label[1:length(phylogeny$node.label)]<-""
+  
+  genera_vector<-NULL
+  for(i in 1:length(phylogeny$tip.label)){genera_vector[i]<-strsplit(x = phylogeny$tip.label[i],split = "_")[[1]][1]}
   
   genera_to_add<-unique(puts_info$put[which(puts_info$put_level=="mrca_genus")])
   families_to_add<-unique(puts_info$put[which(puts_info$put_level=="mrca_family")])
@@ -172,11 +173,17 @@ make_puts_input_node_labels<-function(puts_info,phylogeny,phylogeny_filename="ph
   for(i in 1:length(families_to_add)){
     
     fam_i<-families_to_add[i]  
-    stop("Brian, add code related to taxonomy here")
-    spp_in_family <- taxonomy$scrubbed_species_binomial[which(taxonomy$scrubbed_family == fam_i)]
+    
+    genera_in_fam_i <- NULL
+    spp_in_family <- NULL
+    
+    genera_in_fam_i <- genera_in_grafting_fams$Genus[which(genera_in_grafting_fams$Family==fam_i)]  
+    spp_in_family <- phylogeny$tip.label[which(genera_vector %in% genera_in_fam_i)]
+    
+    #spp_in_family <- taxonomy$scrubbed_species_binomial[which(taxonomy$scrubbed_family == fam_i)]
     
     
-    mrca_i<-getMRCA(phy = phylogeny,
+    mrca_i <- getMRCA(phy = phylogeny,
                     tip = which(phylogeny$tip.label %in% gsub(pattern = " ",replacement = "_", x = spp_in_family   ) )) 
     
     
