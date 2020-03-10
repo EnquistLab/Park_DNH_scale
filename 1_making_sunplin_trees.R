@@ -157,14 +157,92 @@ write.tree(phy = gbotb,"trees_w_updated_names/gbotb.tre")
 #make sp_fam dataframe needed for sunplin fx
 sp_fam <- taxa[c("binomial","Family")]
 
+#allotb
+#allmb
 
-allmb$node.label[grep(pattern = "eae",x = allmb$node.label)]#19
-allotb$node.label[grep(pattern = "eae",x = allotb$node.label)]#13
+#gbotb
+gbotb_genera <- get_genera(phylogeny = gbotb)
+gbotb_genera_to_add <- setdiff(taxa$Genus,gbotb_genera)
 
-gbmb$node.label[grep(pattern = "eae",x = gbmb$node.label)]#3
-gbotb$node.label[grep(pattern = "eae",x = gbotb$node.label)]#3
+#gbmb
+gbmb_genera <- get_genera(phylogeny = gbmb)
+gbmb_genera_to_add <- setdiff(taxa$Genus,gbmb_genera)
 
+#which families do the missing genera fall in?  I'll pull full lists of genera from Kew for these fams
+unique(taxa$Family[which(taxa$Genus %in% union(gbmb_genera_to_add,gbotb_genera_to_add))])
+#write.csv(x = unique(taxa$Family[which(taxa$Genus %in% union(gbmb_genera_to_add,gbotb_genera_to_add))]),file = "fams_needed.csv")
 
+#Dan has requested we follow POTW for placing missing genera.   I've combed through POTW online to get all the families that represent the missing genera
+families_potw<-read.csv("families_to_add.csv",stringsAsFactors = F)
+for(i in 1:length(families_potw$genus)){families_potw$genus[i]<-strsplit(x = families_potw$genus[i],split = " ")[[1]][1]}
+families_potw <- families_potw[which(families_potw$genus!="x"),]
+
+#missing anything?
+missing_genera<-setdiff(x = union(gbmb_genera_to_add,gbotb_genera_to_add),y = families_potw$genus)
+setdiff(x = taxa$Family[which(taxa$Genus %in% missing_genera)],y = families_potw$ï..Family)
+#so missing a few genera due to taxonomic revisions (e.g. renamed species).  I'll graft these on with the original names.
+colnames(families_potw)<-c("Family","Genus")
+families_potw <- rbind(families_potw,taxa[c("Family","Genus")][which(taxa$Genus %in% missing_genera),])
+
+#4.1 prepare puts info files
+#allmb_puts <- get_put_info_node_labels(sp_fam = taxa[c("binomial","Family")],phylogeny = allmb,genus_only_addition = F)
+#length(which(allmb_puts$put_level!="remove"))/nrow(allmb_puts_genus_only) #99 percent
+
+#allotb_puts_genus_only <- get_put_info_node_labels(sp_fam = taxa[c("binomial","Family")],phylogeny = allotb,genus_only_addition = T)
+#length(which(allotb_puts_genus_only$put_level!="remove"))/nrow(allotb_puts_genus_only) #99 percent
+
+gbotb_puts_genus_and_family <- get_put_info_node_labels(sp_fam = taxa[c("binomial","Family")],
+                                                        phylogeny = gbotb, 
+                                                        genus_only_addition = F,
+                                                  genera_in_grafting_fams = families_potw)
+
+length(which(gbotb_puts_genus_and_family$put_level!="remove"))/nrow(gbotb_puts_genus_and_family) #99.99 percent
+
+gbmb_puts_genus_and_family <- get_put_info_node_labels(sp_fam = taxa[c("binomial","Family")],
+                                                       phylogeny = gbmb,
+                                                       genus_only_addition = F,
+                                                       genera_in_grafting_fams = families_potw)
+
+length(which(gbmb_puts_genus_and_family$put_level!="remove"))/nrow(gbmb_puts_genus_and_family) # 99.99 percent
+
+#5.2 prepare puts phylo, .puts files
+
+#make_puts_input_node_labels(puts_info = allmb_puts_genus_only,
+#                            phylogeny = allmb,
+#                            phylogeny_filename = "allmb_genus_only_puts_phylo.tre",
+#                            puts_filename = "allmb_genus_only.puts")
+
+#make_puts_input_node_labels(puts_info = allotb_puts_genus_only,
+#                            phylogeny = allotb,
+#                            phylogeny_filename = "allotb_genus_only_puts_phylo.tre",
+#                            puts_filename = "allotb_genus_only.puts")
+
+make_puts_input_node_labels(puts_info = gbmb_puts_genus_and_family,
+                            phylogeny = gbmb,
+                            phylogeny_filename = "gbmb_genus_and_family_phylo.tre",
+                            puts_filename = "gbmb_genus_and_family.puts",
+                            genera_in_grafting_fams = families_potw )
+
+make_puts_input_node_labels(puts_info = gbotb_puts_genus_only,
+                            phylogeny = gbotb,
+                            phylogeny_filename = "gbotb_genus_and_family_phylo.tre",
+                            puts_filename = "gbotb_genus_and_family.puts",
+                            genera_in_grafting_fams = families_potw)
+
+#4.3 make replicated phylogenies using puts info
+
+sunplin_phylo_replicates(put_file = "gbmb_genus_and_family.puts",
+                         phylogeny_file = "gbmb_genus_and_family_phylo.tre",
+                         output_directory = "sunplin_trees/genus_and_family_additions/gbmb_genus_and_family_additions/",
+                         output_base_filename = "gbmb_and_family_additions",
+                         nrep = 1000)
+
+sunplin_phylo_replicates(put_file = "gbotb_genus_and_family.puts",
+                         phylogeny_file = "gbotb_genus_and_family_phylo.tre",
+                         output_directory = "sunplin_trees/genus_and_family_additions/gbotb_genus_and_family_additions/",
+                         output_base_filename = "gbotb_genus_and_family_additions",
+                         nrep = 1000)
+  
 #########################################################################################################
 
 #Step 5
@@ -209,9 +287,9 @@ make_puts_input_node_labels(puts_info = gbotb_puts_genus_only,
 
 #5.2 make replicated phylogenies using puts info
 
-temp <- read.tree(file = "allmb_genus_only_puts_phylo.tre")
-temp <- multi2di(phy = temp)
-write.tree(phy = temp,file = "temp.tre")
+#temp <- read.tree(file = "allmb_genus_only_puts_phylo.tre")
+#temp <- multi2di(phy = temp)
+#write.tree(phy = temp,file = "temp.tre")
 
 
 #Crashes V
@@ -222,13 +300,13 @@ write.tree(phy = temp,file = "temp.tre")
 #                         nrep = 1000)
 
 
-temp <- drop.tip(phy = temp,tip = setdiff(x = temp$tip.label,y = taxa$binomial))
+#temp <- drop.tip(phy = temp,tip = setdiff(x = temp$tip.label,y = taxa$binomial))
 
-sunplin_phylo_replicates(put_file = "allmb_genus_only.puts",
-                         phylogeny_file = "temp.tre",
-                         output_directory = "sunplin_trees/genus_addition_only/allmb_genus_additions_only/",
-                         output_base_filename = "allmb_genus_addition_only",
-                         nrep = 1000)
+#sunplin_phylo_replicates(put_file = "allmb_genus_only.puts",
+#                         phylogeny_file = "temp.tre",
+#                         output_directory = "sunplin_trees/genus_addition_only/allmb_genus_additions_only/",
+#                         output_base_filename = "allmb_genus_addition_only",
+#                         nrep = 1000)
 
 
 
@@ -257,3 +335,24 @@ sunplin_phylo_replicates(put_file = "allotb_genus_only.puts",
 #                         output_directory = "sunplin_trees/genus_addition_only/gbotb_genus_additions_only/",
 #                         output_base_filename = "gbotb_genus_addition_only",
 #                         nrep = 1000)
+
+
+
+
+
+#####################################
+
+#Copy files to google drive (since Github is running crazy slow..well, internet is crazy slow)
+
+file.copy(from = list.files("sunplin_trees/genus_addition_only/gbmb_genus_additions_only/",full.names = T),
+          to = "C:/Users/Brian/Google Drive/Park_DNH_trees/sunplin_trees/genus_addition_only/gbmb_genus_additions_only/")
+
+file.copy(from = list.files("sunplin_trees/genus_addition_only/gbotb_genus_additions_only/",full.names = T),
+          to = "C:/Users/Brian/Google Drive/Park_DNH_trees/sunplin_trees/genus_addition_only/gbotb_genus_additions_only/")
+
+file.copy(from = list.files("sunplin_trees/genus_and_family_additions/gbmb_genus_and_family_additions/",full.names = T),
+          to = "C:/Users/Brian/Google Drive/Park_DNH_trees/sunplin_trees/genus_and_family_additions/gbmb_genus_and_family_additions/")
+
+
+file.copy(from = list.files("sunplin_trees/genus_and_family_additions/gbotb_genus_and_family_additions/",full.names = T),
+          to = "C:/Users/Brian/Google Drive/Park_DNH_trees/sunplin_trees/genus_and_family_additions/gbotb_genus_and_family_additions/")
